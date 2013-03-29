@@ -37,7 +37,12 @@ function FirePHP4Chrome() {
         		}
         		var commandObject = _buildCommandObject(headerValue);
         		if (commandObject) {
-        			_sendCommandObject(commandObject);
+					if (!Array.isArray(commandObject)) {
+						commandObject = [commandObject];
+					}
+					for (var j = 0; j < commandObject.length; j++) {
+						_sendCommandObject(commandObject[j]);
+					}
         		}
         		headerValue = '';
         	}
@@ -135,24 +140,37 @@ function FirePHP4Chrome() {
         var message = parsedHeaderResponse.message;
 
         var headerType = metaObject.Type.toLowerCase();
+		
+		var style;
 
         /** add in the label because its the same for all - table will add 'table' in if this is blank **/
         var params = [];
         if (metaObject.Label) {
-            params.push(metaObject.Label);
+            params.push("%c" + metaObject.Label);
         }
 
         /**
          * here we either log the plain item, or fake it to be an info
          */
         switch (headerType) {
+            case 'info':
+				if (!style) style = "background:#DBF0F7;display:block !important;float:none !important;position: relative !important;";
+            case 'warn':
+				if (!style) style = "background:#FFCFA4;";
+            case 'error':
+				if (!style) style = "background:#FFC8C8;";
             case 'debug':
             case 'log':
-            case 'info':
-            case 'warn':
-            case 'error':
-                params.push(message);
-                commandObject = {
+				
+                if (metaObject.Label) {
+					params.push(style);
+	                params.push(message);
+                }
+                else {
+	                params.push("%c" + message);
+					params.push(style);
+                }
+				commandObject = {
                     type: headerType,
                     params: params
                 };
@@ -177,8 +195,18 @@ function FirePHP4Chrome() {
 			            consoleGroupCommand = 'groupCollapsed';
 		            }
 	            }
-
-                params.push(message);
+				style = "background:#eee;";
+				if (metaObject.Color) {
+					style += "color:" + metaObject.Color;
+				}
+                if (metaObject.Label) {
+					params.push(style);
+	                params.push(message);
+                }
+                else {
+	                params.push("%c" + message);
+					params.push(style);
+                }
                 commandObject = {
                     type: consoleGroupCommand,
                     params: params
@@ -190,29 +218,30 @@ function FirePHP4Chrome() {
                 /**
                  * ending is either with a camel case (strtolowere'd here) or underscore
                  */
-                params.push(message);
                 commandObject = {
                     type: 'groupEnd',
-                    params: params
+                    params: [message]
                 }
                 break;
 
             case 'table':
-                /**
-                 * no built in functionality for table - so this gets it pretty enough.
-                 * tables probably have a label mostly, so use that as the first row, otherwise just call it a table
-                 */
-                if (params.length == 0) {
-                    params.push('Table'); // add the label if there was no label
-                }
-                for (var i = 0; i < message.length; i++) {
-                    params.push("\n");
-                    params.push(message[i]);
-                }
-                commandObject = {
-                    type: "info",
+				style = 'font-weight: normal !important;';
+				if (metaObject.Color) {
+					style += "color:" + metaObject.Color;
+				}
+                if (metaObject.Label) {
+					params.push(style);
+				}
+				commandObject = [ {
+                    type: "groupCollapsed",
                     params: params
-                };
+                }, {
+                    type: "table",
+                    params: [message]
+                }, {
+                    type: "groupEnd",
+                    params: []
+                }];
                 break;
 
             case 'trace':
@@ -251,7 +280,11 @@ function FirePHP4Chrome() {
                     File: message.File,
                     Line: message.Line
                 };
-                params.push("Exception:\n");
+                if (metaObject.Label) {
+					params.push(style);
+				}
+                params.push("%cException:\n");
+                params.push("color:red");
                 params.push(exceptionObject);
                 params.push("\nStack trace:\n");
                 for (var i = 0; i < message.Trace.length; i++) {
